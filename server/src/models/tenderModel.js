@@ -25,9 +25,15 @@ export const getAllTenders = async () => {
     t.closing_time,
     t.internal_deadline,
 
-    t.submission_method,
-    t.submission_location,
-    t.submitted_at,
+t.submission_method,
+t.submission_location,
+t.submitted_at,
+t.submitted_by,
+t.submission_reference,
+t.submission_notes,
+
+submitter.name AS submitted_by_name,
+submitter.email AS submitted_by_email,
 
     t.internal_owner_id,
     owner.name AS internal_owner_name,
@@ -50,6 +56,9 @@ export const getAllTenders = async () => {
 
   LEFT JOIN users creator
     ON t.created_by = creator.id
+
+  LEFT JOIN users submitter
+   ON t.submitted_by = submitter.id
 
   WHERE t.is_active = 1
 
@@ -146,9 +155,15 @@ export const getTenderById = async (id) => {
     t.closing_time,
     t.internal_deadline,
 
-    t.submission_method,
-    t.submission_location,
-    t.submitted_at,
+  t.submission_method,
+t.submission_location,
+t.submitted_at,
+t.submitted_by,
+t.submission_reference,
+t.submission_notes,
+
+submitter.name AS submitted_by_name,
+submitter.email AS submitted_by_email,
 
     t.internal_owner_id,
     owner.name AS internal_owner_name,
@@ -170,6 +185,9 @@ export const getTenderById = async (id) => {
 
   LEFT JOIN users creator
     ON t.created_by = creator.id
+  
+  LEFT JOIN users submitter
+    ON t.submitted_by = submitter.id
 
   WHERE t.id = ?
     AND t.is_active = 1
@@ -355,6 +373,25 @@ export const assignTenderToEmployee = async ({
   return result.insertId
 }
 
+
+
+export const getTenderEmployeeById = async (userId) => {
+  const [rows] = await pool.query(
+    `
+    SELECT
+      id,
+      name,
+      email
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [userId]
+  )
+
+  return rows[0] || null
+}
+
 export const getTenderAssignments = async (tenderId) => {
   const [rows] = await pool.query(
     `
@@ -470,6 +507,44 @@ export const archiveTenderById = async (tenderId) => {
       AND is_active = 1
     `,
     [tenderId]
+  )
+
+  return result.affectedRows
+}
+
+
+
+export const submitTenderById = async ({
+  tenderId,
+  submittedBy,
+  submissionMethod,
+  submissionLocation,
+  submissionReference,
+  submissionNotes,
+}) => {
+  const [result] = await pool.query(
+    `
+    UPDATE tenders
+    SET
+      status = 'SUBMITTED',
+      submission_method = ?,
+      submission_location = ?,
+      submission_reference = ?,
+      submission_notes = ?,
+      submitted_by = ?,
+      submitted_at = NOW()
+    WHERE id = ?
+      AND is_active = 1
+      AND status <> 'SUBMITTED'
+    `,
+    [
+      submissionMethod || null,
+      submissionLocation || null,
+      submissionReference || null,
+      submissionNotes || null,
+      submittedBy,
+      tenderId,
+    ]
   )
 
   return result.affectedRows

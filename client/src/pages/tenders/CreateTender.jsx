@@ -9,7 +9,7 @@ import {
   Landmark,
   Save,
   Send,
-  UserRound,
+
   WalletCards,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -33,7 +33,7 @@ const initialForm = {
   deadline: '',
   closingTime: '',
   internalDeadline: '',
-  internalOwnerId: '',
+  
   submissionMethod: '',
   submissionLocation: '',
 }
@@ -233,8 +233,9 @@ const CreateTender = () => {
 
   const [form, setForm] = useState(initialForm)
   const [companies, setCompanies] = useState([])
-  const [internalOwners, setInternalOwners] =
-    useState([])
+
+
+
 
   const [loadingOptions, setLoadingOptions] =
     useState(true)
@@ -243,6 +244,10 @@ const CreateTender = () => {
     useState(false)
 
   const [error, setError] = useState('')
+
+
+  const [fieldErrors, setFieldErrors] =
+  useState({})
 
   const tenderListPath =
     user?.role === 'ADMIN'
@@ -254,21 +259,14 @@ const CreateTender = () => {
       try {
         setLoadingOptions(true)
 
-        const [
-          companiesResponse,
-          ownersResponse,
-        ] = await Promise.all([
-          api.get('/companies'),
-          api.get('/tenders/internal-owners'),
-        ])
+      const companiesResponse = await api.get('/companies')
 
         const companiesData =
           companiesResponse.data?.data ||
           companiesResponse.data?.companies ||
           []
 
-        const ownersData =
-          ownersResponse.data?.owners || []
+   
 
         setCompanies(
           Array.isArray(companiesData)
@@ -279,11 +277,7 @@ const CreateTender = () => {
             : []
         )
 
-        setInternalOwners(
-          Array.isArray(ownersData)
-            ? ownersData
-            : []
-        )
+       
       } catch (loadError) {
         console.error(
           'Unable to load tender form options:',
@@ -292,7 +286,7 @@ const CreateTender = () => {
 
         setError(
           loadError.response?.data?.message ||
-            'Unable to load companies or internal owners.'
+            'Unable to load companies.'
         )
       } finally {
         setLoadingOptions(false)
@@ -301,6 +295,10 @@ const CreateTender = () => {
 
     loadFormOptions()
   }, [])
+
+
+
+ 
 
   const selectedCompany = useMemo(
     () =>
@@ -312,24 +310,39 @@ const CreateTender = () => {
     [companies, form.companyId]
   )
 
-  const selectedOwner = useMemo(
-    () =>
-      internalOwners.find(
-        (owner) =>
-          String(owner.id) ===
-          String(form.internalOwnerId)
-      ),
-    [internalOwners, form.internalOwnerId]
-  )
+  
 
   const handleChange = (event) => {
-    const { name, value } = event.target
+  const { name, value } = event.target
 
-    setForm((current) => ({
+ if (name === 'companyId') {
+  if (fieldErrors.companyId) {
+    setFieldErrors((current) => ({
       ...current,
-      [name]: value,
+      companyId: '',
     }))
   }
+
+  setForm((current) => ({
+    ...current,
+    companyId: value,
+  }))
+
+  return
+}
+
+  if (fieldErrors[name]) {
+  setFieldErrors((current) => ({
+    ...current,
+    [name]: '',
+  }))
+}
+
+  setForm((current) => ({
+    ...current,
+    [name]: value,
+  }))
+}
 
   const formattedTenderValue = useMemo(() => {
     if (
@@ -361,14 +374,51 @@ const CreateTender = () => {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    setError('')
+   setError('')
 
-    if (!form.companyId) {
-      setError(
-        'Please select the company responsible for this tender.'
-      )
-      return
-    }
+const validationErrors = {}
+
+if (!form.companyId) {
+  validationErrors.companyId =
+    'Please select the company responsible for this tender.'
+}
+
+if (!form.referenceNo.trim()) {
+  validationErrors.referenceNo =
+    'Tender reference number is required.'
+}
+
+if (!form.title.trim()) {
+  validationErrors.title =
+    'Tender title is required.'
+}
+
+
+if (Object.keys(validationErrors).length > 0) {
+  setFieldErrors(validationErrors)
+
+const fieldOrder = [
+  'companyId',
+  'referenceNo',
+  'title',
+]
+
+  const firstInvalidField =
+    fieldOrder.find(
+      (field) => validationErrors[field]
+    )
+
+  document
+    .getElementById(firstInvalidField)
+    ?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+
+  return
+}
+
+setFieldErrors({})
 
     if (!form.referenceNo.trim()) {
       setError(
@@ -463,10 +513,7 @@ const CreateTender = () => {
         internalDeadline:
           form.internalDeadline || null,
 
-        internalOwnerId:
-          form.internalOwnerId
-            ? Number(form.internalOwnerId)
-            : null,
+        
 
         submissionMethod:
           form.submissionMethod.trim(),
@@ -524,11 +571,10 @@ const CreateTender = () => {
                 Create New Tender
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Register a tender opportunity,
-                define its deadlines and assign
-                internal responsibility before the
-                preparation workflow begins.
+             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Register a tender opportunity and define its
+                key information, deadlines and submission details
+                before the preparation workflow begins.
               </p>
             </div>
 
@@ -595,7 +641,11 @@ const CreateTender = () => {
                         value={form.companyId}
                         onChange={handleChange}
                         disabled={loadingOptions}
-                        className={`${selectClass} pl-10`}
+                       className={`${selectClass} pl-10 ${
+                        fieldErrors.companyId
+                          ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+                          : ''
+                      }`}
                       >
                         <option value="">
                           {loadingOptions
@@ -618,6 +668,11 @@ const CreateTender = () => {
                         )}
                       </select>
                     </div>
+                    {fieldErrors.companyId && (
+                    <p className="mt-1.5 text-xs font-medium text-red-600">
+                      {fieldErrors.companyId}
+                    </p>
+                  )}
                   </div>
 
                   <div>
@@ -635,8 +690,18 @@ const CreateTender = () => {
                       value={form.referenceNo}
                       onChange={handleChange}
                       placeholder="e.g. EHG-2026-011"
-                      className={inputClass}
+                     className={`${inputClass} ${
+                      fieldErrors.referenceNo
+                        ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+                        : ''
+                    }`}
                     />
+
+                    {fieldErrors.referenceNo && (
+                    <p className="mt-1.5 text-xs font-medium text-red-600">
+                      {fieldErrors.referenceNo}
+                    </p>
+                  )}
                   </div>
                 </div>
 
@@ -655,8 +720,17 @@ const CreateTender = () => {
                     value={form.title}
                     onChange={handleChange}
                     placeholder="Enter the official tender title"
-                    className={inputClass}
+                   className={`${inputClass} ${
+                  fieldErrors.title
+                    ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+                    : ''
+                }`}
                   />
+                  {fieldErrors.title && (
+                  <p className="mt-1.5 text-xs font-medium text-red-600">
+                    {fieldErrors.title}
+                  </p>
+                )}
                 </div>
 
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -843,80 +917,39 @@ const CreateTender = () => {
             </section>
 
             {/* Responsibility */}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <SectionHeader
-                number="03"
-                icon={UserRound}
-                title="Responsibility & Workflow"
-                description="Set the tender owner, workflow status and management priority."
-              />
+           {/* Workflow */}
+<section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <SectionHeader
+    number="03"
+    icon={CheckCircle2}
+    title="Workflow"
+    description="Set the initial workflow status and management priority."
+  />
 
-              <div className="p-5 sm:p-6">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <div>
-                    <FieldLabel htmlFor="internalOwnerId">
-                      Internal Tender Owner
-                    </FieldLabel>
+  <div className="p-5 sm:p-6">
+    <div className="grid gap-5 md:grid-cols-2">
+      <div>
+        <FieldLabel htmlFor="status">
+          Workflow Status
+        </FieldLabel>
 
-                    <select
-                      id="internalOwnerId"
-                      name="internalOwnerId"
-                      value={
-                        form.internalOwnerId
-                      }
-                      onChange={handleChange}
-                      disabled={loadingOptions}
-                      className={selectClass}
-                    >
-                      <option value="">
-                        {loadingOptions
-                          ? 'Loading owners...'
-                          : 'Select internal owner'}
-                      </option>
-
-                      {internalOwners.map(
-                        (owner) => (
-                          <option
-                            key={owner.id}
-                            value={owner.id}
-                          >
-                            {owner.name} —{' '}
-                            {owner.role}
-                          </option>
-                        )
-                      )}
-                    </select>
-
-                    <p className="mt-2 text-xs text-slate-400">
-                      Admin, CEO or Manager responsible
-                      for overseeing this tender.
-                    </p>
-                  </div>
-
-                  <div>
-                    <FieldLabel htmlFor="status">
-                      Workflow Status
-                    </FieldLabel>
-
-                    <select
-                      id="status"
-                      name="status"
-                      value={form.status}
-                      onChange={handleChange}
-                      className={selectClass}
-                    >
-                      {statusOptions.map(
-                        (option) => (
-                          <option
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
+        <select
+          id="status"
+          name="status"
+          value={form.status}
+          onChange={handleChange}
+          className={selectClass}
+        >
+          {statusOptions.map((option) => (
+            <option
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
                 </div>
 
                 <div className="mt-5 grid gap-5 md:grid-cols-3">
@@ -1073,7 +1106,7 @@ const CreateTender = () => {
                 selectedCompany={
                   selectedCompany
                 }
-                selectedOwner={selectedOwner}
+                
                 formattedTenderValue={
                   formattedTenderValue
                 }
@@ -1118,7 +1151,7 @@ const CreateTender = () => {
                 selectedCompany={
                   selectedCompany
                 }
-                selectedOwner={selectedOwner}
+             
                 formattedTenderValue={
                   formattedTenderValue
                 }
@@ -1134,7 +1167,6 @@ const CreateTender = () => {
 const TenderSummary = ({
   form,
   selectedCompany,
-  selectedOwner,
   formattedTenderValue,
 }) => {
   const statusLabel =
@@ -1233,14 +1265,7 @@ const TenderSummary = ({
             }
           />
 
-          <SummaryRow
-            label="Internal Owner"
-            value={
-              selectedOwner
-                ? `${selectedOwner.name} (${selectedOwner.role})`
-                : 'Not assigned'
-            }
-          />
+         
 
           <SummaryRow
             label="Tender Value"

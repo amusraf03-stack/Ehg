@@ -16,6 +16,13 @@ import {
 
 
 import {
+  getTenderReviewDashboard,
+  reviewTenderRequirement,
+  reviewTenderCompliance,
+} from '../controllers/tenderReviewController.js'
+
+
+import {
   requireTenderAccess,
 } from '../middleware/tenderAccessMiddleware.js'
 
@@ -25,7 +32,8 @@ import {
   createComplianceItem,
   updateComplianceItem,
   removeComplianceItem,
-  updateEmployeeComplianceProgress
+  updateEmployeeComplianceProgress,
+  getComplianceTemplateOptions,
 } from '../controllers/tenderComplianceController.js'
 
 import {
@@ -47,8 +55,27 @@ import {
 } from '../controllers/tenderDocumentController.js'
 
 import {
+  listTenderInternalNotes,
+  addTenderInternalNote,
+  editTenderInternalNote,
+  deleteTenderInternalNote,
+} from '../controllers/tenderInternalNoteController.js'
+
+
+
+import {
+  listTenderActivities,
+} from '../controllers/tenderActivityController.js'
+
+import {
   tenderDocumentUpload,
 } from '../config/documentUpload.js'
+
+
+import {
+  getTenderSubmission,
+  submitTender,
+} from '../controllers/tenderSubmissionController.js'
 
 import { protect } from '../middleware/authMiddleware.js'
 import { requireRole } from '../middleware/roleMiddleware.js'
@@ -74,7 +101,12 @@ router.get(
 // ADMIN + ceo + MANAGER can view all tenders
 router.get(
   '/',
-  requireRole('ADMIN','CEO', 'MANAGER'),
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
   listTenders
 )
 
@@ -112,13 +144,6 @@ router.put(
   updateRequirement
 )
 
-// ADMIN + MANAGER can remove requirements
-router.delete(
-  '/:tenderId/requirements/:requirementId',
-  requireRole('ADMIN', 'MANAGER'),
-  removeRequirement
-)
-
 
 router.get(
   '/:tenderId/compliance',
@@ -130,6 +155,15 @@ router.get(
   ),
   requireTenderAccess,
   listTenderCompliance
+)
+
+router.get(
+  '/:tenderId/compliance/template-options',
+  requireRole(
+    'ADMIN',
+    'MANAGER'
+  ),
+  getComplianceTemplateOptions
 )
 
 router.post(
@@ -158,11 +192,15 @@ router.delete(
 
 router.patch(
   '/:tenderId/compliance/:complianceItemId/progress',
-  requireRole('EMPLOYEE'),
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
   requireTenderAccess,
   updateEmployeeComplianceProgress
 )
-
 
 // --------------------------------------------------
 // Tender Documents
@@ -186,7 +224,8 @@ router.post(
   requireRole(
     'ADMIN',
     'MANAGER',
-    'EMPLOYEE'
+    'EMPLOYEE',
+    'CEO'
   ),
   requireTenderAccess,
   tenderDocumentUpload.single('file'),
@@ -200,6 +239,7 @@ router.put(
   '/:tenderId/documents/:documentId',
   requireRole(
     'ADMIN',
+    'CEO',
     'MANAGER',
     'EMPLOYEE'
   ),
@@ -240,10 +280,119 @@ router.delete(
   requireRole(
     'ADMIN',
     'MANAGER',
-    'EMPLOYEE'
+    'EMPLOYEE',
+    'CEO'
   ),
   requireTenderAccess,
   removeTenderDocument
+)
+
+//tender internal notes
+//tender internal notes
+router.get(
+  '/:tenderId/internal-notes',
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
+  requireTenderAccess,
+  listTenderInternalNotes
+)
+
+router.post(
+  '/:tenderId/internal-notes',
+  requireRole(
+    'ADMIN',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
+  requireTenderAccess,
+  addTenderInternalNote
+)
+
+router.put(
+  '/:tenderId/internal-notes/:noteId',
+  requireRole(
+    'ADMIN',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
+  requireTenderAccess,
+  editTenderInternalNote
+)
+router.delete(
+  '/:tenderId/internal-notes/:noteId',
+  requireRole(
+    'ADMIN',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
+  requireTenderAccess,
+  deleteTenderInternalNote
+)
+
+
+
+
+
+//tender activity
+
+router.get(
+  '/:tenderId/activity',
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
+  requireTenderAccess,
+  listTenderActivities
+)
+
+
+
+
+
+// --------------------------------------------------
+// Tender Review & Approval
+// --------------------------------------------------
+
+// Review dashboard
+router.get(
+  '/:tenderId/review',
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER'
+  ),
+  requireTenderAccess,
+  getTenderReviewDashboard
+)
+
+// Review Requirement
+router.patch(
+  '/:tenderId/review/requirements/:requirementId',
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER'
+  ),
+  requireTenderAccess,
+  reviewTenderRequirement
+)
+
+// Review Compliance item
+router.patch(
+  '/:tenderId/review/compliance/:complianceItemId',
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER'
+  ),
+  requireTenderAccess,
+  reviewTenderCompliance
 )
 
 // ADMIN + CEO +MANAGER can view tender details
@@ -260,18 +409,58 @@ router.get(
 )
 
 
-
 router.patch(
   '/:tenderId/requirements/:requirementId/progress',
-  requireRole('EMPLOYEE'),
+  requireRole(
+    'ADMIN',
+    'CEO',
+    'MANAGER',
+    'EMPLOYEE'
+  ),
   requireTenderAccess,
   updateEmployeeRequirementProgress
 )
 
+
+
+
+// --------------------------------------------------
+// Final Submission
+// ADMIN / CEO only
+// --------------------------------------------------
+
+// Get Final Submission information
+router.get(
+  '/:tenderId/submission',
+  requireRole(
+    'ADMIN',
+    'CEO'
+  ),
+  requireTenderAccess,
+  getTenderSubmission
+)
+
+// Mark tender as submitted
+router.patch(
+  '/:tenderId/submission',
+  requireRole(
+    'ADMIN',
+    'CEO'
+  ),
+  requireTenderAccess,
+  submitTender
+)
+
+
+
+
+
+
+
 // ADMIN + MANAGER can create tenders
 router.post(
   '/',
-  requireRole('ADMIN', 'MANAGER'),
+  requireRole('ADMIN'),
   createNewTender
 )
 

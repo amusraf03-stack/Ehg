@@ -1,8 +1,8 @@
 import express from 'express'
-
 import {
   listUsers,
   createNewUser,
+  updateExistingUser,
 } from '../controllers/userController.js'
 
 import { protect } from '../middleware/authMiddleware.js'
@@ -15,17 +15,19 @@ import {
   listUserCompanyPermissions,
   assignCompanyPermission,
   removeCompanyPermission,
+  activateUserCompanyMembership,
 } from '../controllers/userCompanyController.js'
 
 const router = express.Router()
 
 router.use(protect)
 
-router.get('/', requireRole('ADMIN'), listUsers)
+router.get('/', requireRole('ADMIN','CEO'), listUsers)
 
 router.post('/', requireRole('ADMIN'), createNewUser)
 
 
+router.put('/:id', requireRole('ADMIN'), updateExistingUser)
 
 // ======================================================
 // USER ↔ COMPANY MEMBERSHIP
@@ -57,6 +59,11 @@ router.delete(
   removeUserFromCompany
 )
 
+router.patch(
+  '/:userId/companies/:companyId/activate',
+  requireRole('ADMIN'),
+  activateUserCompanyMembership
+)
 
 // ======================================================
 // COMPANY ACCESS / DELEGATION

@@ -90,13 +90,17 @@ const TenderManagement = () => {
     }
   }
 
-  const getWorkspacePath = (tenderId) => {
+const getWorkspacePath = (tenderId) => {
   if (user?.role === 'ADMIN') {
     return `/admin/tenders/${tenderId}/workspace`
   }
 
   if (user?.role === 'CEO') {
     return `/ceo/tenders/${tenderId}/workspace`
+  }
+
+  if (user?.role === 'EMPLOYEE') {
+    return `/employee/tenders/${tenderId}/workspace`
   }
 
   return `/manager/tenders/${tenderId}/workspace`
@@ -281,7 +285,7 @@ const TenderManagement = () => {
           </p>
         </div>
 
-        {user?.role !== 'CEO' && (
+        {user?.role == 'ADMIN' && (
         <button
           type="button"
           onClick={() =>
@@ -399,9 +403,9 @@ const TenderManagement = () => {
                         Client
                       </th>
 
-                      <th className="px-5 py-4">
+                      {/* <th className="px-5 py-4">
                         Assigned To
-                      </th>
+                      </th> */}
 
                       <th className="px-5 py-4">
                         Status
@@ -411,9 +415,9 @@ const TenderManagement = () => {
                         Priority
                       </th>
 
-                      <th className="px-5 py-4">
+                      {/* <th className="px-5 py-4">
                         Progress
-                      </th>
+                      </th> */}
 
                       <th className="px-5 py-4">
                         Deadline
@@ -459,7 +463,7 @@ const TenderManagement = () => {
                           </td>
 
                           {/* Assigned To */}
-                          <td className="px-5 py-4">
+                          {/* <td className="px-5 py-4">
                             {getAssignedEmployees(
                               tender
                             ).length === 0 ? (
@@ -528,7 +532,7 @@ const TenderManagement = () => {
                                 )}
                               </div>
                             )}
-                          </td>
+                          </td> */}
 
                           {/* Status */}
                           <td className="px-5 py-4">
@@ -562,7 +566,7 @@ const TenderManagement = () => {
                           </td>
 
                           {/* Progress */}
-                          <td className="px-5 py-4">
+                          {/* <td className="px-5 py-4">
                             <div className="w-32">
                               <div className="mb-1 flex justify-between text-xs text-slate-500">
                                 <span>
@@ -587,7 +591,7 @@ const TenderManagement = () => {
                                 />
                               </div>
                             </div>
-                          </td>
+                          </td> */}
 
                           {/* Deadline */}
                           <td className="px-5 py-4">
@@ -619,7 +623,7 @@ const TenderManagement = () => {
                               Workspace
                             </button>
 
-                            {user?.role !== 'CEO' && (
+                            {user?.role == 'ADMIN' && (
                               <>
                                 <button
                                   type="button"
@@ -645,7 +649,7 @@ const TenderManagement = () => {
                                   {/* Delete */}
                                 </button>
 
-                                <button
+                                {/* <button
                                   type="button"
                                   onClick={() =>
                                     openAssignModal(tender)
@@ -654,7 +658,7 @@ const TenderManagement = () => {
                                 >
                                   <UserPlus size={15} />
                                   Assign
-                                </button>
+                                </button> */}
                               </>
                             )}
                           </div>
@@ -859,7 +863,7 @@ const TenderManagement = () => {
                           {/* Delete */}
                         </button>
 
-                          <button
+                          {/* <button
                             type="button"
                             onClick={() =>
                               openAssignModal(tender)
@@ -868,7 +872,7 @@ const TenderManagement = () => {
                           >
                             <UserPlus size={17} />
                             Assign
-                          </button>
+                          </button> */}
                         </div>
                       )}
                     </div>

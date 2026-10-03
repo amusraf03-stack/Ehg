@@ -11,6 +11,9 @@ import {
 } from '../models/tenderDocumentModel.js'
 
 import { getTenderById } from '../models/tenderModel.js'
+
+import { createTenderActivity } from '../models/tenderActivityModel.js'
+
 import pool from '../config/db.js'
 
 const ALLOWED_DOCUMENT_TYPES = [
@@ -95,55 +98,61 @@ const validateComplianceItem = async (
   return rows.length > 0
 }
 
-const isRequirementAssignedToEmployee = async (
+
+
+const getDocumentLinkContext = async ({
   requirementId,
-  tenderId,
-  userId
-) => {
-  if (!requirementId) {
-    return true
-  }
-
-  const [rows] = await pool.query(
-    `
-      SELECT id
-      FROM tender_requirements
-      WHERE id = ?
-        AND tender_id = ?
-        AND assigned_user_id = ?
-        AND is_active = 1
-      LIMIT 1
-    `,
-    [requirementId, tenderId, userId]
-  )
-
-  return rows.length > 0
-}
-
-const isComplianceAssignedToEmployee = async (
   complianceItemId,
-  tenderId,
-  userId
-) => {
-  if (!complianceItemId) {
-    return true
+}) => {
+  if (requirementId) {
+    const [rows] = await pool.query(
+      `
+        SELECT id, title
+        FROM tender_requirements
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [requirementId]
+    )
+
+    if (rows.length > 0) {
+      return {
+        linkType: 'REQUIREMENT',
+        linkId: rows[0].id,
+        linkTitle: rows[0].title,
+      }
+    }
   }
 
-  const [rows] = await pool.query(
-    `
-      SELECT id
-      FROM tender_compliance_items
-      WHERE id = ?
-        AND tender_id = ?
-        AND assigned_user_id = ?
-        AND is_active = 1
-      LIMIT 1
-    `,
-    [complianceItemId, tenderId, userId]
-  )
+  if (complianceItemId) {
+    const [rows] = await pool.query(
+      `
+        SELECT id, title
+        FROM tender_compliance_items
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [complianceItemId]
+    )
 
-  return rows.length > 0
+    if (rows.length > 0) {
+      return {
+        linkType: 'COMPLIANCE',
+        linkId: rows[0].id,
+        linkTitle: rows[0].title,
+      }
+    }
+  }
+
+  return {
+    linkType: 'TENDER',
+    linkId: null,
+    linkTitle: null,
+  }
 }
+
+
+
 
 export const listTenderDocuments = async (
   req,
@@ -353,47 +362,7 @@ if (
     }
 
 
-    // Employees may link evidence only to work
-// that is specifically assigned to them.
-if (req.user.role === 'EMPLOYEE') {
-  if (parsedRequirementId) {
-    const assignedToEmployee =
-      await isRequirementAssignedToEmployee(
-        parsedRequirementId,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      removePhysicalFile(req.file.path)
-
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only upload evidence for requirements assigned to you.',
-      })
-    }
-  }
-
-  if (parsedComplianceItemId) {
-    const assignedToEmployee =
-      await isComplianceAssignedToEmployee(
-        parsedComplianceItemId,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      removePhysicalFile(req.file.path)
-
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only upload evidence for compliance items assigned to you.',
-      })
-    }
-  }
-}
+    
 
     const document = await createTenderDocument({
       tenderId,
@@ -417,6 +386,55 @@ if (req.user.role === 'EMPLOYEE') {
 
       uploadedBy: req.user.id,
     })
+
+    const linkContext = await getDocumentLinkContext({
+  requirementId: parsedRequirementId,
+  complianceItemId: parsedComplianceItemId,
+})
+
+const isEvidence =
+  documentType === 'INTERNAL_SUBMISSION'
+
+const documentLabel = isEvidence
+  ? 'evidence'
+  : 'source document'
+
+let activityDescription =
+  `${isEvidence ? 'Evidence' : 'Source document'} ` +
+  `"${req.file.originalname}" was uploaded.`
+
+if (linkContext.linkType === 'REQUIREMENT') {
+  activityDescription +=
+    ` Linked to requirement "${linkContext.linkTitle}".`
+} else if (linkContext.linkType === 'COMPLIANCE') {
+  activityDescription +=
+    ` Linked to compliance item "${linkContext.linkTitle}".`
+} else {
+  activityDescription += ' Linked to tender.'
+}
+
+await createTenderActivity({
+  tenderId,
+  userId: req.user.id,
+  actionType: 'DOCUMENT_UPLOADED',
+  entityType: 'DOCUMENT',
+  entityId: document.id,
+  description: activityDescription,
+  metadata: {
+    documentId: document.id,
+    documentType,
+    documentLabel,
+    title: document.title,
+    fileName: req.file.originalname,
+
+    linkType: linkContext.linkType,
+    linkId: linkContext.linkId,
+    linkTitle: linkContext.linkTitle,
+
+    requirementId: parsedRequirementId,
+    complianceItemId: parsedComplianceItemId,
+  },
+})
 
     const summary =
       await getTenderDocumentSummary(tenderId)
@@ -489,33 +507,19 @@ if (
 // --------------------------------------------------
 // Employee document edit security
 // --------------------------------------------------
-if (req.user.role === 'EMPLOYEE') {
-  // Employee can never edit source/original tender documents.
-  if (
-    existing.document_type !== 'INTERNAL_SUBMISSION'
-  ) {
-    removePhysicalFile(req.file?.path)
+// Employees may edit Internal Submission documents only.
+// No assignment or uploader ownership check is required.
+if (
+  req.user.role === 'EMPLOYEE' &&
+  existing.document_type !== 'INTERNAL_SUBMISSION'
+) {
+  removePhysicalFile(req.file?.path)
 
-    return res.status(403).json({
-      success: false,
-      message:
-        'Employees can only edit internal submission documents.',
-    })
-  }
-
-  // Employee can only edit a document they uploaded.
-  if (
-    Number(existing.uploaded_by) !==
-    Number(req.user.id)
-  ) {
-    removePhysicalFile(req.file?.path)
-
-    return res.status(403).json({
-      success: false,
-      message:
-        'You can only edit evidence that you uploaded.',
-    })
-  }
+  return res.status(403).json({
+    success: false,
+    message:
+      'Employees can only edit internal submission documents.',
+  })
 }
 
 const {
@@ -622,63 +626,20 @@ if (
       })
     }
 
-    // --------------------------------------------------
-// Employee linked responsibility security
-// --------------------------------------------------
-if (req.user.role === 'EMPLOYEE') {
-  // Employee evidence must remain linked to a
-  // requirement or compliance item.
-  if (
-    !parsedRequirementId &&
-    !parsedComplianceItemId
-  ) {
-    removePhysicalFile(req.file?.path)
+   
 
-    return res.status(403).json({
-      success: false,
-      message:
-        'Employee evidence must remain linked to an assigned requirement or compliance item.',
-    })
-  }
+const previousLinkContext =
+  await getDocumentLinkContext({
+    requirementId: existing.requirement_id || null,
+    complianceItemId:
+      existing.compliance_item_id || null,
+  })
 
-  if (parsedRequirementId) {
-    const assignedToEmployee =
-      await isRequirementAssignedToEmployee(
-        parsedRequirementId,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      removePhysicalFile(req.file?.path)
-
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only edit evidence for requirements assigned to you.',
-      })
-    }
-  }
-
-  if (parsedComplianceItemId) {
-    const assignedToEmployee =
-      await isComplianceAssignedToEmployee(
-        parsedComplianceItemId,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      removePhysicalFile(req.file?.path)
-
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only edit evidence for compliance items assigned to you.',
-      })
-    }
-  }
-}
+const newLinkContext =
+  await getDocumentLinkContext({
+    requirementId: parsedRequirementId,
+    complianceItemId: parsedComplianceItemId,
+  })
 
     const updatedDocument =
   await updateTenderDocument(
@@ -703,6 +664,80 @@ if (req.user.role === 'EMPLOYEE') {
       fileSize: req.file?.size || null,
     }
   )
+
+
+  const previousDocumentType =
+  existing.document_type
+
+const newDocumentType =
+  updatedDocument.document_type
+
+const previousTitle =
+  existing.title
+
+const newTitle =
+  updatedDocument.title
+
+const previousFileName =
+  existing.file_name
+
+const newFileName =
+  updatedDocument.file_name
+
+const descriptionChanged =
+  (existing.description || '') !==
+  (updatedDocument.description || '')
+
+const linkChanged =
+  previousLinkContext.linkType !==
+    newLinkContext.linkType ||
+  Number(previousLinkContext.linkId || 0) !==
+    Number(newLinkContext.linkId || 0)
+
+const isEvidence =
+  newDocumentType === 'INTERNAL_SUBMISSION'
+
+await createTenderActivity({
+  tenderId,
+  userId: req.user.id,
+  actionType: 'DOCUMENT_UPDATED',
+  entityType: 'DOCUMENT',
+  entityId: documentId,
+  description:
+    `${isEvidence ? 'Evidence' : 'Source document'} ` +
+    `"${newTitle}" was updated.`,
+  metadata: {
+    documentId,
+
+    previousDocumentType,
+    newDocumentType,
+
+    previousTitle,
+    newTitle,
+
+    descriptionChanged,
+
+    previousFileName,
+    newFileName,
+    fileReplaced: Boolean(req.file),
+
+    linkChanged,
+
+    previousLinkType:
+      previousLinkContext.linkType,
+    previousLinkId:
+      previousLinkContext.linkId,
+    previousLinkTitle:
+      previousLinkContext.linkTitle,
+
+    newLinkType:
+      newLinkContext.linkType,
+    newLinkId:
+      newLinkContext.linkId,
+    newLinkTitle:
+      newLinkContext.linkTitle,
+  },
+})
 
     const summary =
       await getTenderDocumentSummary(tenderId)
@@ -928,82 +963,26 @@ if (
   })
 }
 
-// --------------------------------------------------
-// Employee document delete security
-// --------------------------------------------------
-if (req.user.role === 'EMPLOYEE') {
-  // Employees can never remove source/original documents.
-  if (
-    document.document_type !== 'INTERNAL_SUBMISSION'
-  ) {
-    return res.status(403).json({
-      success: false,
-      message:
-        'Employees can only remove their own internal submission documents.',
-    })
-  }
-
-  // Employees can only remove evidence they uploaded.
-  if (
-    Number(document.uploaded_by) !==
-    Number(req.user.id)
-  ) {
-    return res.status(403).json({
-      success: false,
-      message:
-        'You can only remove evidence that you uploaded.',
-    })
-  }
-
-  // Employee evidence must still belong to work
-  // currently assigned to that employee.
-  if (document.requirement_id) {
-    const assignedToEmployee =
-      await isRequirementAssignedToEmployee(
-        document.requirement_id,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only remove evidence for requirements assigned to you.',
-      })
-    }
-  }
-
-  if (document.compliance_item_id) {
-    const assignedToEmployee =
-      await isComplianceAssignedToEmployee(
-        document.compliance_item_id,
-        tenderId,
-        req.user.id
-      )
-
-    if (!assignedToEmployee) {
-      return res.status(403).json({
-        success: false,
-        message:
-          'You can only remove evidence for compliance items assigned to you.',
-      })
-    }
-  }
-
-  // Contextual employee evidence should remain linked
-  // to either a requirement or compliance responsibility.
-  if (
-    !document.requirement_id &&
-    !document.compliance_item_id
-  ) {
-    return res.status(403).json({
-      success: false,
-      message:
-        'Only evidence linked to your assigned responsibility can be removed here.',
-    })
-  }
+// Employees may remove Internal Submission documents only.
+// No assignment, ownership, or link check is required.
+if (
+  req.user.role === 'EMPLOYEE' &&
+  document.document_type !== 'INTERNAL_SUBMISSION'
+) {
+  return res.status(403).json({
+    success: false,
+    message:
+      'Employees can only remove internal submission documents.',
+  })
 }
+
+const linkContext =
+  await getDocumentLinkContext({
+    requirementId:
+      document.requirement_id || null,
+    complianceItemId:
+      document.compliance_item_id || null,
+  })
 
 const removed =
   await deactivateTenderDocument(documentId)
@@ -1024,6 +1003,53 @@ const removed =
       A future administrator cleanup/archive process can safely
       remove orphaned physical files.
     */
+
+
+      const isEvidence =
+  document.document_type === 'INTERNAL_SUBMISSION'
+
+const documentLabel = isEvidence
+  ? 'evidence'
+  : 'source document'
+
+let activityDescription =
+  `${isEvidence ? 'Evidence' : 'Source document'} ` +
+  `"${document.file_name}" was removed.`
+
+if (linkContext.linkType === 'REQUIREMENT') {
+  activityDescription +=
+    ` Linked to requirement "${linkContext.linkTitle}".`
+} else if (linkContext.linkType === 'COMPLIANCE') {
+  activityDescription +=
+    ` Linked to compliance item "${linkContext.linkTitle}".`
+} else {
+  activityDescription += ' Linked to tender.'
+}
+
+await createTenderActivity({
+  tenderId,
+  userId: req.user.id,
+  actionType: 'DOCUMENT_ARCHIVED',
+  entityType: 'DOCUMENT',
+  entityId: documentId,
+  description: activityDescription,
+  metadata: {
+    documentId,
+    documentType: document.document_type,
+    documentLabel,
+    title: document.title,
+    fileName: document.file_name,
+
+    linkType: linkContext.linkType,
+    linkId: linkContext.linkId,
+    linkTitle: linkContext.linkTitle,
+
+    requirementId:
+      document.requirement_id || null,
+    complianceItemId:
+      document.compliance_item_id || null,
+  },
+})
 
     const summary =
       await getTenderDocumentSummary(tenderId)

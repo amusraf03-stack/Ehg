@@ -16,7 +16,9 @@
     "db:migrate:phase2c": "node src/config/migratePhase2TenderCompliance.js",
     "db:seed:compliance": "node src/config/seedComplianceTemplate.js",
     "db:migrate:phase2d": "node src/config/migratePhase2TenderDocuments.js",
-    "db:migrate:tender-soft-delete": "node src/config/migrateTenderSoftDelete.js"
+    "db:migrate:tender-soft-delete": "node src/config/migrateTenderSoftDelete.js",
+    "db:migrate:phase2f": "node src/config/migratePhase2TenderNotes.js",
+    "db:migrate:phase2g": "node src/config/migratePhase2TenderActivity.js"
   },
   "keywords": [],
   "author": "",

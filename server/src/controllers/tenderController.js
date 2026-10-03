@@ -1,3 +1,9 @@
+
+import {
+  createTenderActivity,
+} from '../models/tenderActivityModel.js'
+
+
 import {
   getAllTenders,
   getTenderById,
@@ -8,6 +14,7 @@ import {
   getAssignedTendersByUserId,
   removeTenderAssignment,
    archiveTenderById,
+   getTenderEmployeeById,
 } from '../models/tenderModel.js'
 
 import {
@@ -164,7 +171,7 @@ export const createNewTender = async (
       internalDeadline,
       submissionMethod,
       submissionLocation,
-      internalOwnerId,
+   
       submittedAt,
     } = req.body
 
@@ -332,65 +339,7 @@ export const createNewTender = async (
       }
     }
 
-    /* -----------------------------
-       Internal Owner
-    ----------------------------- */
-
-    const numericInternalOwnerId =
-      internalOwnerId === undefined ||
-      internalOwnerId === null ||
-      internalOwnerId === ''
-        ? null
-        : Number(internalOwnerId)
-
-    if (
-      numericInternalOwnerId !== null &&
-      (!Number.isInteger(
-        numericInternalOwnerId
-      ) ||
-        numericInternalOwnerId <= 0)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid internal owner ID.',
-      })
-    }
-
-    if (numericInternalOwnerId !== null) {
-      const internalOwner =
-        await findUserById(
-          numericInternalOwnerId
-        )
-
-      if (!internalOwner) {
-        return res.status(404).json({
-          success: false,
-          message:
-            'Selected internal owner does not exist.',
-        })
-      }
-
-      if (internalOwner.status !== 'ACTIVE') {
-        return res.status(400).json({
-          success: false,
-          message:
-            'Internal owner must be an active user.',
-        })
-      }
-
-      if (
-        !allowedInternalOwnerRoles.includes(
-          internalOwner.role
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            'Internal owner must be an Admin, CEO, or Manager.',
-        })
-      }
-    }
-
+   
     /* -----------------------------
        Create Tender
     ----------------------------- */
@@ -425,14 +374,32 @@ export const createNewTender = async (
         normalizeNullableText(
           submissionLocation
         ),
-      internalOwnerId:
-        numericInternalOwnerId,
+      internalOwnerId: req.user.id,
       submittedAt: submittedAt || null,
       createdBy: req.user.id,
     })
 
     const tender =
       await getTenderById(tenderId)
+
+
+    await createTenderActivity({
+        tenderId,
+        userId: req.user.id,
+        actionType: 'TENDER_CREATED',
+        entityType: 'TENDER',
+        entityId: tenderId,
+        description: `Tender "${tender.title}" was created.`,
+        metadata: {
+          tenderId,
+          title: tender.title,
+          referenceNo: tender.reference_no,
+          companyId: tender.company_id || null,
+          companyName: tender.company_name || null,
+          status: tender.status,
+          priority: tender.priority,
+        },
+      })
 
     return res.status(201).json({
       success: true,
@@ -796,6 +763,126 @@ export const updateTender = async (
     const updatedTender =
       await getTenderById(tenderId)
 
+
+    // --------------------------------------------------
+    // Activity log - tender updated
+    // --------------------------------------------------
+
+    const tenderChanges = {
+      previousCompanyId:
+        existingTender.company_id || null,
+      previousCompanyName:
+        existingTender.company_name || null,
+      newCompanyId:
+        updatedTender.company_id || null,
+      newCompanyName:
+        updatedTender.company_name || null,
+
+      previousReferenceNo:
+        existingTender.reference_no,
+      newReferenceNo:
+        updatedTender.reference_no,
+
+      previousTitle:
+        existingTender.title,
+      newTitle:
+        updatedTender.title,
+
+      previousClientName:
+        existingTender.client_name || null,
+      newClientName:
+        updatedTender.client_name || null,
+
+      descriptionChanged:
+        (existingTender.description || '') !==
+        (updatedTender.description || ''),
+
+      previousCategory:
+        existingTender.category || null,
+      newCategory:
+        updatedTender.category || null,
+
+      previousStatus:
+        existingTender.status,
+      newStatus:
+        updatedTender.status,
+
+      previousPriority:
+        existingTender.priority,
+      newPriority:
+        updatedTender.priority,
+
+      previousTenderValue:
+        existingTender.tender_value ?? null,
+      newTenderValue:
+        updatedTender.tender_value ?? null,
+
+      previousResult:
+        existingTender.result,
+      newResult:
+        updatedTender.result,
+
+      previousProgress:
+        Number(existingTender.progress ?? 0),
+      newProgress:
+        Number(updatedTender.progress ?? 0),
+
+      previousStartDate:
+        existingTender.start_date || null,
+      newStartDate:
+        updatedTender.start_date || null,
+
+      previousDeadline:
+        existingTender.deadline || null,
+      newDeadline:
+        updatedTender.deadline || null,
+
+      previousClosingTime:
+        existingTender.closing_time || null,
+      newClosingTime:
+        updatedTender.closing_time || null,
+
+      previousInternalDeadline:
+        existingTender.internal_deadline || null,
+      newInternalDeadline:
+        updatedTender.internal_deadline || null,
+
+      previousSubmissionMethod:
+        existingTender.submission_method || null,
+      newSubmissionMethod:
+        updatedTender.submission_method || null,
+
+      previousSubmissionLocation:
+        existingTender.submission_location || null,
+      newSubmissionLocation:
+        updatedTender.submission_location || null,
+
+      previousInternalOwnerId:
+        existingTender.internal_owner_id || null,
+      previousInternalOwnerName:
+        existingTender.internal_owner_name || null,
+      newInternalOwnerId:
+        updatedTender.internal_owner_id || null,
+      newInternalOwnerName:
+        updatedTender.internal_owner_name || null,
+
+      previousSubmittedAt:
+        existingTender.submitted_at || null,
+      newSubmittedAt:
+        updatedTender.submitted_at || null,
+    }
+
+    await createTenderActivity({
+      tenderId,
+      userId: req.user.id,
+      actionType: 'TENDER_UPDATED',
+      entityType: 'TENDER',
+      entityId: tenderId,
+      description:
+        `Tender "${updatedTender.title}" was updated.`,
+      metadata: tenderChanges,
+    })
+
     return res.status(200).json({
       success: true,
       message:
@@ -898,6 +985,26 @@ export const assignTender = async (
         assignedBy: req.user.id,
       })
 
+    const assignedEmployee =
+      await getTenderEmployeeById(userId)
+
+    
+      await createTenderActivity({
+        tenderId,
+        userId: req.user.id,
+        actionType: 'EMPLOYEE_ASSIGNED',
+        entityType: 'ASSIGNMENT',
+        entityId: assignmentId,
+        description: assignedEmployee
+          ? `${assignedEmployee.name} was assigned to this tender.`
+          : 'Employee assigned to tender.',
+        metadata: {
+          assignedUserId: userId,
+          assignedUserName:
+            assignedEmployee?.name || null,
+        },
+      })
+
     const assignments =
       await getTenderAssignments(tenderId)
 
@@ -978,10 +1085,16 @@ export const removeTenderTeamMember = async (
       })
     }
 
+    const removedEmployee =
+      await getTenderEmployeeById(userId)
+
     const removed = await removeTenderAssignment({
       tenderId,
       userId,
     })
+
+    
+
 
     if (!removed) {
       return res.status(404).json({
@@ -990,6 +1103,22 @@ export const removeTenderTeamMember = async (
           'Employee is not assigned to this tender.',
       })
     }
+
+    await createTenderActivity({
+        tenderId,
+        userId: req.user.id,
+        actionType: 'EMPLOYEE_REMOVED',
+        entityType: 'ASSIGNMENT',
+        entityId: null,
+        description: removedEmployee
+          ? `${removedEmployee.name} was removed from this tender.`
+          : 'Employee removed from tender.',
+        metadata: {
+          removedUserId: userId,
+          removedUserName:
+            removedEmployee?.name || null,
+        },
+      })
 
     const assignments =
       await getTenderAssignments(tenderId)
@@ -1041,7 +1170,37 @@ export const listAssignableEmployees = async (
 
 export const listInternalOwners = async (req, res) => {
   try {
-    const owners = await getActiveTenderOwners()
+    const companyId = Number(req.query.companyId)
+
+    if (
+      !Number.isInteger(companyId) ||
+      companyId <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid company ID is required.',
+      })
+    }
+
+    const company = await findCompanyById(companyId)
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Selected company does not exist.',
+      })
+    }
+
+    if (company.status !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Internal owners cannot be loaded for an inactive company.',
+      })
+    }
+
+    const owners =
+      await getActiveTenderOwners(companyId)
 
     return res.status(200).json({
       success: true,
@@ -1059,7 +1218,6 @@ export const listInternalOwners = async (req, res) => {
     })
   }
 }
-
 /* =========================================================
    EMPLOYEE ASSIGNED TENDERS
 ========================================================= */
@@ -1129,6 +1287,8 @@ export const archiveTender = async (
       tenderId
     )
 
+
+
     if (!archived) {
       return res.status(404).json({
         success: false,
@@ -1137,9 +1297,30 @@ export const archiveTender = async (
       })
     }
 
+
+    // --------------------------------------------------
+    // Activity log - tender archived
+    // --------------------------------------------------
+
+    await createTenderActivity({
+      tenderId,
+      userId: req.user.id,
+      actionType: 'TENDER_ARCHIVED',
+      entityType: 'TENDER',
+      entityId: tenderId,
+      description: `Tender "${tender.title}" was archived.`,
+      metadata: {
+        tenderId,
+        title: tender.title,
+        referenceNo: tender.reference_no,
+        companyId: tender.company_id || null,
+        companyName: tender.company_name || null,
+      },
+    })
+
     return res.status(200).json({
       success: true,
-      message: 'Tender deleted successfully.',
+      message: 'Tender archived successfully.',
       data: {
         id: tenderId,
         referenceNo: tender.reference_no,

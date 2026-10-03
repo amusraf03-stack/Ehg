@@ -1,6 +1,5 @@
 import {
   getTenderById,
-  isUserAssignedToTender,
 } from '../models/tenderModel.js'
 
 export const requireTenderAccess = async (
@@ -32,35 +31,14 @@ export const requireTenderAccess = async (
       })
     }
 
-    // Management roles can continue.
-    // Individual routes still decide what each role
-    // is allowed to view or modify.
+    // All tender workspace roles can access all tenders.
+    // Individual routes/controllers still control
+    // what each role can modify.
     if (
-      ['ADMIN', 'CEO', 'MANAGER'].includes(
+      ['ADMIN', 'CEO', 'MANAGER', 'EMPLOYEE'].includes(
         req.user.role
       )
     ) {
-      req.tender = tender
-      return next()
-    }
-
-    // Employees may access only tenders
-    // to which they are assigned.
-    if (req.user.role === 'EMPLOYEE') {
-      const assigned =
-        await isUserAssignedToTender({
-          tenderId,
-          userId: req.user.id,
-        })
-
-      if (!assigned) {
-        return res.status(403).json({
-          success: false,
-          message:
-            'You do not have access to this tender.',
-        })
-      }
-
       req.tender = tender
       return next()
     }

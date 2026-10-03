@@ -1,16 +1,15 @@
 @import "tailwindcss";
 
 
-/* Hide scrollbar but keep sidebar scrollable */
-.scrollbar-hide {
+/* Hide scrollbar but keep scrolling */
+.hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
+.hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
-
 :root {
   font-family: Inter, system-ui, Arial, sans-serif;
   line-height: 1.5;

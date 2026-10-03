@@ -104,6 +104,10 @@ function App() {
     path="/ceo/dashboard"
     element={<CEODashboard />}
   />
+  <Route
+  path="/ceo/users"
+  element={<UsersPage />}
+/>
 
   <Route
     path="/ceo/tenders"
@@ -173,9 +177,11 @@ function App() {
         />
 
         <Route
-          path="/employee/assigned-tenders"
-          element={<AssignedTenders />}
-        />
+  path="/employee/tenders"
+  element={<TenderManagement />}
+/>
+
+
 
         <Route
           path="/employee/tenders/:id/workspace"

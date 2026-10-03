@@ -15,6 +15,11 @@ export const getTenderRequirements = async (tenderId) => {
       tr.description,
       tr.is_mandatory,
       tr.status,
+      tr.review_status,
+tr.reviewed_by,
+reviewer.name AS reviewed_by_name,
+tr.reviewed_at,
+tr.review_comment,
       tr.assigned_user_id,
       assigned_user.name AS assigned_user_name,
       assigned_user.email AS assigned_user_email,
@@ -39,6 +44,9 @@ export const getTenderRequirements = async (tenderId) => {
 
     LEFT JOIN users completed_user
       ON tr.completed_by = completed_user.id
+
+    LEFT JOIN users reviewer
+      ON tr.reviewed_by = reviewer.id
 
     WHERE tr.tender_id = ?
       AND tr.is_active = 1
@@ -72,6 +80,11 @@ export const getTenderRequirementById = async (
       tr.description,
       tr.is_mandatory,
       tr.status,
+      tr.review_status,
+tr.reviewed_by,
+reviewer.name AS reviewed_by_name,
+tr.reviewed_at,
+tr.review_comment,
       tr.assigned_user_id,
       assigned_user.name AS assigned_user_name,
       assigned_user.email AS assigned_user_email,
@@ -96,6 +109,9 @@ export const getTenderRequirementById = async (
 
     LEFT JOIN users completed_user
       ON tr.completed_by = completed_user.id
+    
+    LEFT JOIN users reviewer
+      ON tr.reviewed_by = reviewer.id
 
     WHERE tr.id = ?
       AND tr.tender_id = ?
@@ -342,4 +358,41 @@ export const getTenderRequirementSummary = async (
     mandatory: Number(summary.mandatory || 0),
     overdue: Number(summary.overdue || 0),
   }
+}
+
+
+
+export const updateTenderRequirementReview = async (
+  tenderId,
+  requirementId,
+  {
+    reviewStatus,
+    reviewedBy = null,
+    reviewedAt = null,
+    reviewComment = null,
+  }
+) => {
+  const [result] = await pool.query(
+    `
+    UPDATE tender_requirements
+    SET
+      review_status = ?,
+      reviewed_by = ?,
+      reviewed_at = ?,
+      review_comment = ?
+    WHERE id = ?
+      AND tender_id = ?
+      AND is_active = 1
+    `,
+    [
+      reviewStatus,
+      reviewedBy,
+      reviewedAt,
+      reviewComment,
+      requirementId,
+      tenderId,
+    ]
+  )
+
+  return result.affectedRows
 }

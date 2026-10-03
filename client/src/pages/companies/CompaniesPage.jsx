@@ -5,8 +5,8 @@ import {
   CircleSlash2,
   Search,
   Users,
-  MoreHorizontal,
-   Plus 
+Pencil,
+Plus
 } from 'lucide-react'
 
 import api from '../../services/api'
@@ -23,6 +23,23 @@ const CompaniesPage = () => {
 const [createError, setCreateError] = useState('')
 
   const [showCreateModal, setShowCreateModal] = useState(false)
+
+
+
+  const [showEditModal, setShowEditModal] = useState(false)
+const [selectedCompany, setSelectedCompany] = useState(null)
+
+const [updating, setUpdating] = useState(false)
+const [editError, setEditError] = useState('')
+
+const [editCompanyForm, setEditCompanyForm] = useState({
+  name: '',
+  description: '',
+  status: 'ACTIVE',
+})
+
+
+
 
 const [companyForm, setCompanyForm] = useState({
   name: '',
@@ -158,6 +175,66 @@ const [companyForm, setCompanyForm] = useState({
     )
   } finally {
     setCreating(false)
+  }
+}
+
+
+
+const handleUpdateCompany = async () => {
+  if (!selectedCompany) {
+    return
+  }
+
+  const name = editCompanyForm.name.trim()
+  const description = editCompanyForm.description.trim()
+
+  if (!name) {
+    setEditError('Company name is required.')
+    return
+  }
+
+  try {
+    setUpdating(true)
+    setEditError('')
+
+    const response = await api.put(
+      `/companies/${selectedCompany.id}`,
+      {
+        name,
+        description: description || null,
+        status: editCompanyForm.status,
+      }
+    )
+
+    const updatedCompany =
+      response.data.company ||
+      response.data.data
+
+    if (updatedCompany) {
+      setCompanies((previous) =>
+        previous.map((company) =>
+          company.id === updatedCompany.id
+            ? updatedCompany
+            : company
+        )
+      )
+    }
+
+    setShowEditModal(false)
+    setSelectedCompany(null)
+
+    setEditCompanyForm({
+      name: '',
+      description: '',
+      status: 'ACTIVE',
+    })
+  } catch (error) {
+    setEditError(
+      error.response?.data?.message ||
+        'Unable to update company.'
+    )
+  } finally {
+    setUpdating(false)
   }
 }
 
@@ -311,9 +388,7 @@ const [companyForm, setCompanyForm] = useState({
                         Company
                       </th>
 
-                      <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Code
-                      </th>
+                     
 
                       <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Status
@@ -323,9 +398,11 @@ const [companyForm, setCompanyForm] = useState({
                         Description
                       </th>
 
+                      {user?.role === 'ADMIN' && (
                       <th className="px-6 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Action
                       </th>
+                      )}
                     </tr>
                   </thead>
 
@@ -353,9 +430,7 @@ const [companyForm, setCompanyForm] = useState({
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 text-sm font-medium text-slate-600">
-                          {company.code || '—'}
-                        </td>
+                       
 
                         <td className="px-6 py-4">
                           <span
@@ -375,16 +450,28 @@ const [companyForm, setCompanyForm] = useState({
                               'No description provided.'}
                           </p>
                         </td>
-
+                        {user?.role === 'ADMIN' && (
                         <td className="px-6 py-4 text-right">
-                          <button
+                         <button
                             type="button"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                            aria-label={`Company actions for ${company.name}`}
+                            onClick={() => {
+                              setSelectedCompany(company)
+
+                              setEditCompanyForm({
+                                name: company.name || '',
+                                description: company.description || '',
+                                status: company.status || 'ACTIVE',
+                              })
+
+                              setShowEditModal(true)
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#6B3A98] transition hover:bg-purple-50"
                           >
-                            <MoreHorizontal size={19} />
+                            <Pencil size={16} />
+                            Edit
                           </button>
                         </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -409,9 +496,7 @@ const [companyForm, setCompanyForm] = useState({
                             {company.name}
                           </p>
 
-                          <p className="mt-1 text-sm text-slate-500">
-                            {company.code || 'No company code'}
-                          </p>
+                          
                         </div>
                       </div>
 
@@ -497,24 +582,7 @@ const [companyForm, setCompanyForm] = useState({
           />
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Company Code
-          </label>
-
-          <input
-            type="text"
-            value={companyForm.code}
-            onChange={(event) =>
-              setCompanyForm((previous) => ({
-                ...previous,
-                code: event.target.value,
-              }))
-            }
-            placeholder="e.g. EHG-LOG"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#6B3A98] focus:ring-2 focus:ring-[#6B3A98]/15"
-          />
-        </div>
+     
 
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -574,6 +642,128 @@ const [companyForm, setCompanyForm] = useState({
           {creating ? 'Creating...' : 'Create Company'}
         </button>
       </div>
+    </div>
+  </div>
+)}
+
+
+{showEditModal && selectedCompany && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4">
+    <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+
+      <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Edit Company
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Update company information and organizational status.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowEditModal(false)
+            setSelectedCompany(null)
+          }}
+          className="rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="space-y-5 p-6">
+
+
+            {editError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {editError}
+            </div>
+          )}
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Company Name
+          </label>
+
+          <input
+            type="text"
+            value={editCompanyForm.name}
+            onChange={(event) =>
+              setEditCompanyForm((previous) => ({
+                ...previous,
+                name: event.target.value,
+              }))
+            }
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#6B3A98] focus:ring-2 focus:ring-[#6B3A98]/15"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Description
+          </label>
+
+          <textarea
+            rows={4}
+            value={editCompanyForm.description}
+            onChange={(event) =>
+              setEditCompanyForm((previous) => ({
+                ...previous,
+                description: event.target.value,
+              }))
+            }
+            placeholder="Short description of the company"
+            className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#6B3A98] focus:ring-2 focus:ring-[#6B3A98]/15"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Status
+          </label>
+
+          <select
+            value={editCompanyForm.status}
+            onChange={(event) =>
+              setEditCompanyForm((previous) => ({
+                ...previous,
+                status: event.target.value,
+              }))
+            }
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#6B3A98] focus:ring-2 focus:ring-[#6B3A98]/15"
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+        <button
+          type="button"
+          onClick={() => {
+            setShowEditModal(false)
+            setSelectedCompany(null)
+          }}
+          className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+
+        <button
+      type="button"
+      onClick={handleUpdateCompany}
+      disabled={updating}
+      className="rounded-xl bg-[#6B3A98] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5B3184] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {updating ? 'Saving...' : 'Save Changes'}
+    </button>
+      </div>
+
     </div>
   </div>
 )}

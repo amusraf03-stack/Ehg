@@ -9,7 +9,7 @@ import {
   Landmark,
   Save,
   Send,
-  UserRound,
+  
   WalletCards,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -33,7 +33,7 @@ const initialForm = {
   deadline: '',
   closingTime: '',
   internalDeadline: '',
-  internalOwnerId: '',
+  
   submissionMethod: '',
   submissionLocation: '',
 }
@@ -226,7 +226,6 @@ const SummaryRow = ({ label, value }) => (
 const TenderSummary = ({
   form,
   selectedCompany,
-  selectedOwner,
   formattedTenderValue,
 }) => {
   const statusLabel =
@@ -316,14 +315,7 @@ const TenderSummary = ({
             }
           />
 
-          <SummaryRow
-            label="Internal Owner"
-            value={
-              selectedOwner
-                ? `${selectedOwner.name} (${selectedOwner.role})`
-                : 'Not assigned'
-            }
-          />
+      
 
           <SummaryRow
             label="Tender Value"
@@ -384,8 +376,7 @@ const EditTender = () => {
 
   const [form, setForm] = useState(initialForm)
   const [companies, setCompanies] = useState([])
-  const [internalOwners, setInternalOwners] =
-    useState([])
+
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] =
@@ -403,15 +394,13 @@ const EditTender = () => {
         setLoading(true)
         setError('')
 
-        const [
-          tenderResponse,
-          companiesResponse,
-          ownersResponse,
-        ] = await Promise.all([
-          api.get(`/tenders/${id}`),
-          api.get('/companies'),
-          api.get('/tenders/internal-owners'),
-        ])
+       const [
+  tenderResponse,
+  companiesResponse,
+] = await Promise.all([
+  api.get(`/tenders/${id}`),
+  api.get('/companies'),
+])
 
         const tender = tenderResponse.data.data
 
@@ -420,8 +409,7 @@ const EditTender = () => {
           companiesResponse.data?.companies ||
           []
 
-        const ownersData =
-          ownersResponse.data?.owners || []
+
 
         setCompanies(
           Array.isArray(companiesData)
@@ -432,11 +420,6 @@ const EditTender = () => {
             : []
         )
 
-        setInternalOwners(
-          Array.isArray(ownersData)
-            ? ownersData
-            : []
-        )
 
         setForm({
           companyId:
@@ -492,8 +475,7 @@ const EditTender = () => {
               tender.internal_deadline
             ),
 
-          internalOwnerId:
-            tender.internal_owner_id ?? '',
+          
 
           submissionMethod:
             tender.submission_method || '',
@@ -524,15 +506,7 @@ const EditTender = () => {
     [companies, form.companyId]
   )
 
-  const selectedOwner = useMemo(
-    () =>
-      internalOwners.find(
-        (owner) =>
-          String(owner.id) ===
-          String(form.internalOwnerId)
-      ),
-    [internalOwners, form.internalOwnerId]
-  )
+
 
   const formattedTenderValue = useMemo(() => {
     if (
@@ -673,10 +647,7 @@ const EditTender = () => {
         internalDeadline:
           form.internalDeadline || null,
 
-        internalOwnerId:
-          form.internalOwnerId
-            ? Number(form.internalOwnerId)
-            : null,
+   
 
         submissionMethod:
           form.submissionMethod.trim(),
@@ -1044,51 +1015,16 @@ const EditTender = () => {
 
             {/* Section 3 */}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <SectionHeader
-                number="03"
-                icon={UserRound}
-                title="Responsibility & Workflow"
-                description="Manage ownership, workflow state, priority, outcome and current progress."
-              />
+             <SectionHeader
+  number="03"
+  icon={CheckCircle2}
+  title="Workflow"
+  description="Manage workflow state, priority, outcome and current progress."
+/>
 
               <div className="p-5 sm:p-6">
                 <div className="grid gap-5 md:grid-cols-2">
-                  <div>
-                    <FieldLabel htmlFor="internalOwnerId">
-                      Internal Tender Owner
-                    </FieldLabel>
-
-                    <select
-                      id="internalOwnerId"
-                      name="internalOwnerId"
-                      value={
-                        form.internalOwnerId
-                      }
-                      onChange={handleChange}
-                      className={selectClass}
-                    >
-                      <option value="">
-                        No owner assigned
-                      </option>
-
-                      {internalOwners.map(
-                        (owner) => (
-                          <option
-                            key={owner.id}
-                            value={owner.id}
-                          >
-                            {owner.name} —{' '}
-                            {owner.role}
-                          </option>
-                        )
-                      )}
-                    </select>
-
-                    <p className="mt-2 text-xs text-slate-400">
-                      Admin, CEO or Manager overseeing
-                      this tender.
-                    </p>
-                  </div>
+                  
 
                   <div>
                     <FieldLabel htmlFor="status">
@@ -1276,18 +1212,11 @@ const EditTender = () => {
 
             {/* Mobile Summary */}
             <div className="xl:hidden">
-              <TenderSummary
-                form={form}
-                selectedCompany={
-                  selectedCompany
-                }
-                selectedOwner={
-                  selectedOwner
-                }
-                formattedTenderValue={
-                  formattedTenderValue
-                }
-              />
+             <TenderSummary
+  form={form}
+  selectedCompany={selectedCompany}
+  formattedTenderValue={formattedTenderValue}
+/>
             </div>
 
             {/* Actions */}
@@ -1320,18 +1249,11 @@ const EditTender = () => {
           {/* Desktop Summary */}
           <aside className="hidden xl:block">
             <div className="sticky top-6">
-              <TenderSummary
-                form={form}
-                selectedCompany={
-                  selectedCompany
-                }
-                selectedOwner={
-                  selectedOwner
-                }
-                formattedTenderValue={
-                  formattedTenderValue
-                }
-              />
+             <TenderSummary
+  form={form}
+  selectedCompany={selectedCompany}
+  formattedTenderValue={formattedTenderValue}
+/>
             </div>
           </aside>
         </div>

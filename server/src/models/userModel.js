@@ -138,6 +138,45 @@ export const createUser = async ({
   return result.insertId
 }
 
+
+
+export const updateUserById = async (
+  id,
+  {
+    name,
+    email,
+    phone = null,
+    roleId,
+    department = null,
+    status,
+  }
+) => {
+  const [result] = await pool.query(
+    `
+      UPDATE users
+      SET
+        name = ?,
+        email = ?,
+        phone = ?,
+        role_id = ?,
+        department = ?,
+        status = ?
+      WHERE id = ?
+    `,
+    [
+      name,
+      email,
+      phone,
+      roleId,
+      department,
+      status,
+      id,
+    ]
+  )
+
+  return result.affectedRows
+}
+
 export const updateLastLogin = async (userId) => {
   await pool.query(
     `
@@ -169,31 +208,54 @@ export const getActiveEmployees = async () => {
 
   return rows
 }
+export const getActiveTenderOwners = async (companyId) => {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        users.id,
+        users.name,
+        users.email,
+        users.department,
+        users.status,
+        roles.name AS role,
 
+        COUNT(DISTINCT active_tenders.id) AS active_tender_count
 
-export const getActiveTenderOwners = async () => {
-  const [rows] = await pool.query(`
-    SELECT
-      users.id,
-      users.name,
-      users.email,
-      users.department,
-      users.status,
-      roles.name AS role
-    FROM users
-    INNER JOIN roles
-      ON users.role_id = roles.id
-    WHERE roles.name IN ('ADMIN', 'CEO', 'MANAGER')
-      AND users.status = 'ACTIVE'
-    ORDER BY
-      CASE roles.name
-        WHEN 'ADMIN' THEN 1
-        WHEN 'CEO' THEN 2
-        WHEN 'MANAGER' THEN 3
-        ELSE 4
-      END,
-      users.name ASC
-  `)
+      FROM users
+
+      INNER JOIN roles
+        ON users.role_id = roles.id
+
+      INNER JOIN user_companies
+        ON user_companies.user_id = users.id
+
+      LEFT JOIN tenders active_tenders
+        ON active_tenders.internal_owner_id = users.id
+        AND active_tenders.is_active = 1
+        AND active_tenders.status NOT IN (
+          'COMPLETED',
+          'CANCELLED'
+        )
+
+      WHERE roles.name = 'MANAGER'
+        AND users.status = 'ACTIVE'
+        AND user_companies.company_id = ?
+        AND user_companies.status = 'ACTIVE'
+
+      GROUP BY
+        users.id,
+        users.name,
+        users.email,
+        users.department,
+        users.status,
+        roles.name
+
+      ORDER BY
+        active_tender_count ASC,
+        users.name ASC
+    `,
+    [companyId]
+  )
 
   return rows
 }

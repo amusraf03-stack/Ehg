@@ -53,6 +53,26 @@ export const findActiveUserCompany = async (
   return rows[0] || null
 }
 
+
+export const findUserCompany = async (
+  userId,
+  companyId
+) => {
+  const [rows] = await pool.query(
+    `
+      SELECT *
+      FROM user_companies
+      WHERE user_id = ?
+        AND company_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [userId, companyId]
+  )
+
+  return rows[0] || null
+}
+
 export const addUserToCompany = async ({
   userId,
   companyId,
@@ -194,6 +214,28 @@ export const deactivateUserCompany = async ({
       userId,
       companyId,
     ]
+  )
+
+  return result.affectedRows
+}
+
+export const activateUserCompany = async ({
+  userId,
+  companyId,
+}) => {
+  const [result] = await pool.query(
+    `
+      UPDATE user_companies
+      SET
+        status = 'ACTIVE',
+        is_primary = FALSE,
+        active_from = CURDATE(),
+        active_to = NULL
+      WHERE user_id = ?
+        AND company_id = ?
+        AND status = 'INACTIVE'
+    `,
+    [userId, companyId]
   )
 
   return result.affectedRows

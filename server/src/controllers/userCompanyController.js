@@ -4,10 +4,12 @@ import {
   addUserToCompany,
   updateUserCompany,
   deactivateUserCompany,
+  activateUserCompany,
   getUserCompanyPermissions,
   findUserCompanyPermission,
   grantCompanyPermission,
   revokeCompanyPermission,
+  findUserCompany,
 } from '../models/userCompanyModel.js'
 
 import { findUserById } from '../models/userModel.js'
@@ -137,6 +139,15 @@ export const assignUserToCompany = async (req, res) => {
       })
     }
 
+
+    if (!['CEO', 'MANAGER'].includes(user.role)) {
+  return res.status(400).json({
+    success: false,
+    message:
+      'Company assignments are only available for CEO and MANAGER users.',
+  })
+}
+
     const company = await findCompanyById(parsedCompanyId)
 
     if (!company) {
@@ -153,15 +164,21 @@ export const assignUserToCompany = async (req, res) => {
       })
     }
 
-    const existingMembership = await findActiveUserCompany(
-      userId,
-      parsedCompanyId
-    )
+   const existingMembership =
+  await findUserCompany(userId, companyId)
 
     if (existingMembership) {
+      if (existingMembership.status === 'ACTIVE') {
+        return res.status(409).json({
+          success: false,
+          message: 'User is already assigned to this company.',
+        })
+      }
+
       return res.status(409).json({
         success: false,
-        message: 'User is already assigned to this company.',
+        message:
+          'This company membership already exists but is inactive. Reactivate the existing membership instead.',
       })
     }
 
@@ -206,6 +223,23 @@ export const updateUserCompanyMembership = async (
         message: 'Invalid user ID or company ID.',
       })
     }
+
+    const user = await findUserById(userId)
+
+if (!user) {
+  return res.status(404).json({
+    success: false,
+    message: 'User not found.',
+  })
+}
+
+if (!['CEO', 'MANAGER'].includes(user.role)) {
+  return res.status(400).json({
+    success: false,
+    message:
+      'Company assignments are only available for CEO and MANAGER users.',
+  })
+}
 
     const membership = await findActiveUserCompany(
       userId,
@@ -290,6 +324,23 @@ export const removeUserFromCompany = async (req, res) => {
       })
     }
 
+    const user = await findUserById(userId)
+
+if (!user) {
+  return res.status(404).json({
+    success: false,
+    message: 'User not found.',
+  })
+}
+
+if (!['CEO', 'MANAGER'].includes(user.role)) {
+  return res.status(400).json({
+    success: false,
+    message:
+      'Company assignments are only available for CEO and MANAGER users.',
+  })
+}
+
     const membership = await findActiveUserCompany(
       userId,
       companyId
@@ -327,6 +378,87 @@ export const removeUserFromCompany = async (req, res) => {
   }
 }
 
+
+
+
+// PATCH /api/users/:userId/companies/:companyId/activate
+// Reactivates an existing inactive membership
+export const activateUserCompanyMembership = async (req, res) => {
+  try {
+    const userId = parsePositiveId(req.params.userId)
+    const companyId = parsePositiveId(req.params.companyId)
+
+    if (!userId || !companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID or company ID.',
+      })
+    }
+
+    const user = await findUserById(userId)
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      })
+    }
+
+    if (!['CEO', 'MANAGER'].includes(user.role)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Company assignments are only available for CEO and MANAGER users.',
+      })
+    }
+
+    const company = await findCompanyById(companyId)
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found.',
+      })
+    }
+
+    if (company.status !== 'ACTIVE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot activate membership for an inactive company.',
+      })
+    }
+
+    const affectedRows = await activateUserCompany({
+      userId,
+      companyId,
+    })
+
+    if (affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Inactive company membership not found.',
+      })
+    }
+
+    const companies = await getUserCompanies(userId)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Company membership activated successfully.',
+      companies,
+    })
+  } catch (error) {
+    console.error(
+      'Activate user company membership error:',
+      error
+    )
+
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to activate company membership.',
+    })
+  }
+}
 
 // ======================================================
 // COMPANY PERMISSIONS / DELEGATION
