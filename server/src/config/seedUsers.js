@@ -17,6 +17,13 @@ const demoUsers = [
     department: 'Administration',
   },
   {
+    name: 'EHG CEO',
+    email: 'ceo@ehgholdingss.com',
+    password: 'Ceo@12345',
+    role: 'CEO',
+    department: 'Management',
+  },
+  {
     name: 'EHG Manager',
     email: 'manager@ehgholdings.com',
     password: 'Manager@123',
@@ -25,8 +32,8 @@ const demoUsers = [
   },
   {
     name: 'EHG Employee',
-    email: 'employee@ehgholdings.com',
-    password: 'Employee@123',
+    email: 'testhgholdings@gmail.com',
+    password: 'Test@123',
     role: 'EMPLOYEE',
     department: 'Tender Operations',
   },
