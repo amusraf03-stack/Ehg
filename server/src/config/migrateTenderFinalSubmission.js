@@ -20,7 +20,7 @@ const migrateTenderFinalSubmission = async () => {
     if (submittedByColumn.length === 0) {
       await pool.query(`
         ALTER TABLE tenders
-        ADD COLUMN submitted_by INT NULL
+        ADD COLUMN submitted_by INT UNSIGNED NULL
         AFTER submitted_at
       `)
 
